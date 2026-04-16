@@ -1,0 +1,442 @@
+---
+title: "TP sur les types de données et la construction de data frame"
+author: "Durel TEUMO"
+date: "2026-04-14"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F , warning = F)
+library(dplyr) #Pour les différentes manipulations statistiques, surtout dans la partie 4
+```
+
+# Typage implicite, coercicion et ambigüités
+
+## Question 1 -- Type et mode des objets
+
+Considérons les objets définis comme suit:
+
+```{r}
+x <- c(1,2,3)
+y <- c(TRUE,FALSE,TRUE)
+z <- c("4", "5", "6")
+w <- list(1, "2", TRUE)
+```
+
+Ici , \texttt{x} est un **vecteur d'entiers**; \texttt{y} est un **vecteur logique**; \texttt{z} est un **vecteur de caractères** et \texttt{w} est une **liste**.
+
+## Question 2 -- Analyse des résultats
+
+Dans cette question, nous allons analyser les resultats des opérations suivantes:
+
+```{r }
+x+y
+```
+
+Ici, R a converti le vecteur logique en **combinaison numérique binaire**: 0 pour \texttt{FALSE} et 1 pour \texttt{TRUE}. Le resultat obtenu est un **vecteur d'entiers**.
+
+```{r, error=TRUE}
+ x+z
+```
+
+On voit qu'une erreur est signalée: En effet, à cause des guillemets, R considère les valeurs de \texttt{z} comme des caractères, et de ce fait ne peut pas réaliser une addition.
+
+```{r}
+as.numeric(z)+x
+```
+
+Le code s'exécute correctement: En effet, grâce à la fonction \texttt{as.numeric()} R effectue d'abord une conversion des éléments de \texttt{z} en nombres, puis effectue l'addition.
+
+```{r, error=TRUE}
+unlist(w)+x
+```
+
+Le code donne une erreur. En effet, lorsqu'on applique la fonction\texttt{unlist()} à \texttt{w}, du fait de la *hiérarchie de types*, \texttt{w} va être converti en une **liste de caractères**. De ce fait, R ne peut réaliser l'addition entre des caractères et des nombres.
+
+## Question 3 -- Cas de coercition implicite
+
+Les cas de coercition implicite sont les cas de transformation automatique d’un type de donnée en un autre sans qu'on ne le demande directement. Par exemple, lorsqu'on fait \texttt{unlist(w)}, on demande sans le vouloir à R de convertir tous les éléments de \texttt{w} en caractères.
+
+## Question 4 -- Type cible et logique de conversion mobilisée
+
+Dans le premier cas, le type cible est un **vecteur numérique**. Dans le 3e, le type cible est aussi un **vecteur numérique**. Dans les 2e et 4e cas, on a une erreur.
+
+## Question 5 -- Discussion sur les conséquences
+
+Considérons l'instruction suivante:
+
+```{r}
+as.numeric(c("10","A","20"))
+```
+
+\underline{Interprétation du résultat:} Dans cette instruction, la fonction \texttt{as.numeric()} permet de, dans la mesure du possible, convertir un élément en nombre: c'est une **coercition explicite** vers le type numérique. Dans notre vecteur ci-dessus, tous les éléments sont considérés comme des caractères. Cependant, il y a une différence entre eux: les éléments "10" et "20" sont des nombres passés en caractère, donc peuvent être reconvertis en nombres grâce à \texttt{as.numeric}. Par contre, "A" est un caractère de nature, et ne correspond à aucun nombre. D'ou le **Not Avalaible** (\texttt{NA}) pour indiquer qu'aucune conversion de "A" en entier n'est possible.
+
+\newpage
+
+# Structures hétérogènes et propagation des types
+
+Considérons la construction :
+
+```{r}
+A <- c(1,2,3)
+B <- c("a", "b", "c")
+C <- c(TRUE, FALSE, TRUE)
+D <- data.frame(A,B,C)
+```
+
+## Question 1 -- Déterminons le type de chaque colonne de D
+
+Pour ce faire, nous pouvons utiliser plusieurs fonctions sur R, comme \texttt{str} ou encore \texttt{sapply} et \texttt{class} simultanément:
+
+```{r}
+#Méthode 1
+str(D)
+#Méthode 2
+sapply(D, class)
+```
+
+## Question 2 -- Explication de la validation de la stucture du data frame
+
+R accepte cette tructure car D tel que défini est un \texttt{data frame}. En effet, un data frame est une liste déléments de même nature sur chaque colonne, ce qui est respecté ici, car chacun des vecteurs A, B et C est passé en colonne dans D.
+
+## Question 3 -- Comparaison du comportement de \texttt{D}
+
+Soit l'instruction:
+
+```{r}
+M <- as.matrix(D)
+```
+
+La différence dans ce cas est que, une **matrice** est une collection d'éléments de même nature. Ainsi,du fait de la hiérarchie des types, cette instruction entraîne une coercition implicite, qui convertit tous les éléments de D en caractères.
+
+## Question 4 — Type final de la matrice
+
+```{r type_matrice, error = TRUE}
+class(M)
+typeof(M)
+```
+
+La matrice est de type `character`. En R, une matrice doit avoir un type **unique et homogène** pour tous ses éléments. Lors de la conversion, R applique la règle de **coercition implicite** selon la hiérarchie :
+
+$$\text{logical} < \text{integer} < \text{numeric} < \text{character}$$
+
+Le type `character` étant le plus général, tous les éléments sont convertis vers lui. 
+
+## Question 5 — Perte d'information statistique
+
+```{r perte_info}
+# Avant conversion : on peut faire des calculs sur la colonne A
+mean(D$A)
+sum(D$C)   # TRUE = 1, FALSE = 0
+
+# Après conversion : tout est character, les calculs sont impossibles
+mean(M[, "A"])   # renvoie NA avec un warning
+```
+
+La conversion entraîne deux pertes majeures :
+
+- La colonne **A** (numérique) ne permet plus aucun calcul statistique 
+  (moyenne, somme, variance...)
+- La colonne **C** (logique) perd sa valeur booléenne — `"TRUE"` est 
+  désormais une simple chaîne de caractères, non interprétable comme 
+  condition logique
+
+Dans un contexte d'analyse de données, cela peut fausser silencieusement 
+des résultats si on ne vérifie pas les types après transformation.
+
+## Question 6 — Stratégie pour préserver les types
+
+Pour préserver les types tout en ayant la possibilité de faire des calculs, on peut essayer de **ne travailler qu'avec les colonnes numériques:**
+```{r }
+# Extraire uniquement les colonnes numériques
+cols_num <- sapply(D, is.numeric)
+M_num <- as.matrix(D[, cols_num])
+M_num
+class(M_num)   # numeric — les calculs sont possibles
+```
+
+
+La stratégie à privilégier dépend du contexte : si toutes les variables 
+sont numériques, `as.matrix()` est sans risque. Sinon, il vaut mieux 
+travailler colonne par colonne ou encoder explicitement les variables 
+qualitatives.
+
+\newpage
+
+# Facteurs, encodage et biais d'interprétation
+
+Considérons le vecteur : 
+```{r}
+niveau <- c("faible", "moyen", "élevé", "moyen", "faible")
+
+```
+
+
+## Question 1 -- Transformation en facteur ordonné
+
+```{r facteur_ordonne}
+niveau_f <- factor(niveau, 
+                   levels = c("faible", "moyen", "élevé"), 
+                   ordered = TRUE)
+niveau_f
+```
+
+L'argument \texttt{levels} permet de définir la hiérarchie des modalités, 
+et \texttt{ordered = TRUE} indique à R que ce facteur est **ordonné**. 
+On obtient bien la relation $\text{faible} < \text{moyen} < \text{élevé}$.
+
+## Question 2 -- Valeurs numériques internes
+
+```{r valeurs_internes}
+as.numeric(niveau_f)
+levels(niveau_f)
+```
+
+R encode les modalités en entiers selon leur rang dans \texttt{levels} : 
+\texttt{faible} $\rightarrow$ 1, \texttt{moyen} $\rightarrow$ 2, 
+\texttt{élevé} $\rightarrow$ 3.
+
+## Question 3 -- Danger de as.numeric(niveau)
+
+```{r danger_as_numeric, warning=TRUE}
+as.numeric(niveau)
+```
+
+Cette instruction est dangereuse car :
+
+\texttt{niveau} est encore un **vecteur de caractères** à ce stade.
+  R ne peut pas le convertir en nombres, ce qui produit des \texttt{NA} 
+  pour chaque élément
+
+## Question 4 -- Représentation numérique cohérente
+
+La méthode correcte consiste à convertir le **facteur ordonné** 
+\texttt{niveau\_f} et non le vecteur de caractères brut :
+
+```{r representation_correcte}
+codes_corrects <- as.numeric(niveau_f)
+codes_corrects
+
+```
+
+
+## Question 5 -- Validité statistique
+
+```{r validite_stat}
+revenu <- c(100, 200, 300, 250, 150)
+
+# Filtrage et calcul
+mean(revenu[niveau_f == "élevé"])
+```
+
+L'expression est **statistiquement valide** dans ce contexte, 
+sous deux conditions respectées ici :
+
+- L'opérateur \texttt{==} sur un facteur ordonné fonctionne correctement 
+  car R compare les étiquettes et non les codes internes
+- \texttt{niveau\_f} et \texttt{revenu} ont la **même longueur** et les 
+  observations sont **appariées** — le $i$-ème élément de \texttt{revenu} 
+  correspond bien au $i$-ème élément de \texttt{niveau\_f}
+
+```{r verification_appariement}
+data.frame(niveau_f, revenu)
+```
+
+On peut vérifier que seule l'observation à l'indice 3 a le niveau 
+\texttt{élevé}, avec un revenu de 300. La moyenne est donc 300.
+
+## Question 6 -- Biais potentiel si les niveaux sont mal ordonnés
+
+```{r biais_mauvais_ordre}
+# Facteur avec un ordre incorrect
+niveau_mal_ordonne <- factor(niveau, 
+                             levels = c("élevé", "faible", "moyen"), 
+                             ordered = TRUE)
+
+# Les codes internes sont maintenant faux
+as.numeric(niveau_mal_ordonne)
+
+# Comparaisons ordonnées deviennent fausses
+niveau_mal_ordonne > "faible"
+niveau_f          > "faible"   # version correcte
+```
+
+Un mauvais ordonnancement des niveaux entraîne deux types de biais :
+
+- Les **comparaisons ordinales** (\texttt{>}, \texttt{<}) donnent des 
+  résultats faux — par exemple \texttt{faible > moyen} pourrait être 
+  \texttt{TRUE} selon l'ordre mal défini
+- Les **codes numériques internes** ne reflètent plus la hiérarchie réelle, 
+  ce qui fausse toute analyse qui s'appuie dessus (régression ordinale, 
+  visualisation par rang, tri...)
+
+La bonne pratique est donc de **toujours définir explicitement** l'argument 
+\texttt{levels} dans l'ordre croissant logique, et de vérifier avec 
+\texttt{levels()} avant toute analyse.
+
+\newpage
+
+# Construction structurée d'un data frame
+
+## Question 1 -- Construction du data frame
+
+```{r construction_df}
+set.seed(123)
+n <- 100  # taille de la cohorte
+
+etudiants <- data.frame(
+  # Identifiant unique — caractère
+  id = paste0("ETU", sprintf("%03d", 1:n)),
+  
+  # Sexe — facteur non ordonné
+  sexe = factor(
+    sample(c("M", "F"), n, replace = TRUE) #replace = T car c'est un tirage avec remise
+  ),
+  
+  # Filière — facteur non ordonné (justification à la Q4)
+  filiere = factor(
+    sample(c("ISEP", "ISE", "AS"), n, replace = TRUE) 
+  ),
+  
+  # Moyennes semestrielles — numérique
+  moy_S1   = ifelse(
+               sample(c(TRUE, FALSE), n, replace = TRUE, prob = c(0.08, 0.92)),
+               NA,
+               round(runif(n, min = 10, max = 20), 2)
+             ),
+  
+  moy_S2   = ifelse(
+               sample(c(TRUE, FALSE), n, replace = TRUE, prob = c(0.06, 0.94)),
+               NA,
+               round(runif(n, min = 10, max = 20), 2)
+             ),
+  # Statut boursier 
+  boursier = factor(sample(c("Oui", "Non"), n, replace = TRUE)),
+  
+  # Région d'origine avec valeurs manquantes — caractère
+  region = factor(sample(
+    c("Dakar", "Thiès", "Saint-Louis", "Ziguinchor", NA),
+    n, replace = TRUE, prob = c(0.35, 0.25, 0.20, 0.15, 0.05)
+  )),
+  
+  stringsAsFactors = FALSE
+)
+```
+
+Le typage est défini explicitement pour chaque variable :
+\texttt{factor()} pour les qualitatives, \texttt{round(runif())} pour 
+les notes, et \texttt{NA} 
+introduits naturellement via \texttt{prob} dans \texttt{sample()}.
+
+## Question 2 -- Création de la variable moyenne_annuelle
+
+ Ici, on peut utiliser la fonction `mutate` du package \texttt{dplyr}, et `rowMeans` pour le calcul des moyennes en lignes. Le \texttt{na.rm = 
+ FALSE} ici est volontaire, car ce n'est pas intéréssant d'imputer une moyenne non méritée à un étudiant. On arrondira les resultats à 2 chiffres après la virgule.
+ 
+```{r }
+ etudiants <- etudiants %>%
+mutate(
+    moyenne_annuelle = round(rowMeans(
+      cbind(moy_S1, moy_S2), na.rm = FALSE), 2)
+  )
+```
+
+## Question 3 -- Création de la variable sur le statut d'admission
+On peut utiliser la fonction de base \texttt{ifelse} pour créer la variable **Statut**, en prenant la modalité **Non renseigné** pour les moyennes indisponibles.
+```{r}
+etudiants$Statut <- ifelse(
+  is.na(etudiants$moyenne_annuelle),"Non renseigné",
+   ifelse(etudiants$moyenne_annuelle>=12,"Admis","Ajourné")
+) %>% factor()
+```
+
+## Question 4 -- Pertinence de la transformation en facteurs ordonnés
+ Dans la pratique, il n'y a pas de "hiérarchie" entre les filières. En effet, aucune filière dans l'école n'est au dessus d'une autre, donc il n'est pas pertinent de transformer la variable **\texttt{filiere}** en variable catégorielle ordonnée.
+ 
+##Question 5 -- Vérification de la structure complète
+ 
+ Pour vérifier la stucture d'un data frame, on peut utiliser la fonction \texttt{str()}:
+```{r}
+str(etudiants)
+```
+
+
+```{r anomalies}
+# Types de chaque colonne via dplyr
+etudiants %>% summarise(across(everything(), class))
+
+# Plages de valeurs pour les notes
+etudiants %>%
+  summarise(
+    min_S1 = min(moy_S1, na.rm = TRUE),
+    max_S1 = max(moy_S1, na.rm = TRUE),
+    min_S2 = min(moy_S2, na.rm = TRUE),
+    max_S2 = max(moy_S2, na.rm = TRUE)
+  )
+```
+
+**Commentaire :**
+
+- Les types sont cohérents avec les définitions : \texttt{factor} pour
+  les qualitatives et \texttt{numeric} pour les notes.
+- Les valeurs manquantes sont concentrées sur \texttt{region}
+  (manquant non critique) et sur les moyennes.
+- Les notes sont dans la plage $[10, 20]$ — aucune anomalie de plage.
+-Les identifiants sont laissés en type \texttt{character}, car chaque identifiant est unique.
+
+
+## Question 6 -- Contrôle automatique
+
+```{r controle_automatique}
+# Valeurs manquantes par colonne
+colSums(is.na(etudiants))
+
+# Valeurs aberrantes sur les notes
+etudiants %>%
+  filter(moy_S1 < 0 | moy_S1 > 20 | 
+         moy_S2 < 0 | moy_S2 > 20)
+
+# Types de chaque colonne
+sapply(etudiants, class)
+```
+
+Aucune valeur aberrante n'est détectée sur les notes — elles sont toutes
+dans la plage $[10, 20]$. Les seules valeurs manquantes concernent
+\texttt{region} et \texttt{moyenne\_annuelle}, ce qui est cohérent
+avec nos choix de construction.
+
+## Question 7 -- Implications pour les analyses statistiques
+
+### Régression linéaire
+
+```{r regression, echo=T}
+modele <- lm(moyenne_annuelle ~ filiere + boursier, data = etudiants)
+summary(modele)
+```
+
+Pour la regression linéaire, R encode automatiquement les facteurs en variables indicatrices
+telles que \texttt{filiere}, et \texttt{boursier}. Les lignes
+avec \texttt{NA} sur \texttt{moyenne\_annuelle} par exemple sont exclues
+automatiquement de l'estimation.
+
+### Analyse factorielle
+
+```{r analyse_factorielle}
+# Sélection et nettoyage des variables numériques uniquement
+etudiants_num <- etudiants %>%
+  select(where(is.numeric)) %>%
+  na.omit()
+
+cor(etudiants_num)
+```
+
+L'ACP (l'Analyse des Composantes Principales) n'accepte que des variables numériques. Les variables
+\texttt{factor} comme \texttt{filiere} et \texttt{sexe} doivent être
+encodées en 0/1 au préalable, ou traitées séparément via une
+**Analyse des Correspondances Multiples** (ACM).
+
+

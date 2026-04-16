@@ -1,0 +1,138 @@
+---
+title: "Diagonalisation d'une matrice d'ordre 3"
+author: "Durel TEUMO"
+date: "2026-04-13"
+output: 
+ pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F , warning = F)
+```
+\newpage
+
+# Création de la matrice **A**
+
+```{r Création}
+A <- matrix(c(1,0,-1, 1,2,1, 2,2,3), nrow=3, ncol=3, byrow = T)
+A
+```
+On a une matrice carrée d'ordre 3.
+
+# Détermination du polynôme caractéristique
+
+## Création de la matrice identité d'ordre 3
+```{r Matrice unité}
+I<- diag(3)
+I
+```
+## Création d'une fonction pour le calcul de **$p_A(\lambda) = det(A-\lambda \times I)$**
+ Le polynôme caractéristique étant une fonction d'indéterminée $\lambda$, alors on peut utiliser \texttt{function()}, comme suit:
+
+```{r Polynome_caractéristique}
+poly_car <- function(lambda) det(A - lambda * I)
+```
+# Détermination des valeurs et vecteurs propres de A
+
+## Tracé de la courbe du polynôme caractéristique
+Pour déterminer les valeurs propres de A sur $\mathbb{R}$, on peut d'abord faire une visualisation du polynôme avec \texttt{\textbf{curve ()}}, et ensuite utiliser \texttt{\textbf{uniroot}} pour attribuer chaque solution à une valeur précise. Une ligne rouge sera tracée avec \texttt{\textbf{abline()}} pour mettre en exergue l'axe des abscisses.
+```{r Valeurs propres}
+curve(Vectorize(poly_car)(x), from = 0, to = 4) 
+abline(h = 0, col = "red")
+grid()
+```
+
+## Assignation des valeurs propres à des variables 
+A partir de la question précédente, on voit clairement sur le graphique que les racines du polynôme caractéristique sont dans les intervalles **[0.5;1.5]**, **[1.5;2.5]** et **[2.5;3.5]**.
+Les valeurs propres de la matrice **$A$** sont données par :
+```{r assignation}
+lambda_1 <- round(uniroot(Vectorize(poly_car), c(0.5,1.5))$root , 2)
+lambda_2 <- round(uniroot(Vectorize(poly_car), c(1.5,2.5))$root , 2)
+lambda_3 <- round(uniroot(Vectorize(poly_car), c(2.5,3.5))$root , 2)
+c(lambda_1,lambda_2,lambda_3)
+```
+Le polynôme caractéristique étant **scindé** et à **trois racines simples**, alors on peut conclure que **A est diagonalisable**. 
+
+Il nous reste donc à déterminer ses éléments de réduction.
+
+## Détermination des vecteurs propres
+
+ On peut utiliser la fonction \texttt{\textbf{solve()}} pour résoudre les équations matricielles d'indéterminée $X$ de la forme $AX = b$:
+```{r vecteur_propre1}
+# Pour lambda1
+M <- A - lambda_1 * I
+
+# On remplace la dernière ligne par (1, 0, 0) = 1
+# pour fixer la première composante à 1
+M_mod <- M
+M_mod[3, ] <- c(1, 0, 0)
+b <- c(0, 0, 1)
+
+v1 <- solve(M_mod, b)
+v1
+```
+On peut vérifier le resultat:
+```{r verification1}
+all.equal(A %*% v1, as.matrix(lambda_1 * v1))
+```
+
+```{r vecteur_propre2}
+# Pour trouver le vecteur propre associé à lambda_2
+M <- A - lambda_2 * I
+
+#Utilisons la Singular Value Decomposition de base de R
+# La SVD décompose M et le dernier vecteur de V 
+# est toujours dans le noyau de M (solution de Mv=0)
+v2 <- svd(M)$v[, 3]
+v2
+```
+On peut vérifier le resultat:
+```{r verification2}
+all.equal(A %*% v2, as.matrix(lambda_2 * v2))
+```
+```{r vecteur_propre3}
+# Pour trouver le vecteur propre associé à lambda_2
+M <- A - lambda_3 * I
+
+#Utilisons la Singular Value Decomposition de base de R
+# La SVD décompose M et le dernier vecteur de V 
+# est toujours dans le noyau de M (solution de Mv=0)
+v3 <- svd(M)$v[, 3]
+v3
+```
+On peut vérifier le resultat:
+```{r verification3}
+all.equal(A %*% v3, as.matrix(lambda_3 * v3))
+```
+# Construction de la matrice de passage **P** et de la matrice diagonale **D**
+
+Des calculs précédents, on peut déterminer les éléments réducteurs de A:
+
+```{r construction_D}
+D <- diag(c(lambda_1,lambda_2,lambda_3))
+D
+```
+```{r construction_P}
+P  <- matrix(c(v1, v2, v3), nrow = 3, ncol = 3, byrow = F)
+P
+
+```
+# Vérification de la diagonalisation
+
+Pour vérifier notre diagonalisation, il suffit de vérifier si :
+$$ A = PDP^{-1}$$
+Calculons $PDP^{-1}$:
+```{r Verification_Diago}
+B<- P%*%D%*%solve(P)
+round (B,2)
+all.equal(B, A)
+```
+
+La valeur retournée par le \texttt{all.equal(B,A)} étant **TRUE**, alors, on peut conclure que $A = PDP^{-1}$, donc A est bien diagonalisable.
+
+
+
+
